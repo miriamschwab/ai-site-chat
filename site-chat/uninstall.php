@@ -17,6 +17,8 @@ delete_option( 'site_chat_enabled' );
 delete_option( 'site_chat_rate_limit' );
 delete_option( 'site_chat_custom_instructions' );
 delete_option( 'site_chat_post_types' );
+delete_option( 'site_chat_post_type_limits' );
+delete_option( 'site_chat_excluded_fields' );
 delete_option( 'site_chat_log_enabled' );
 delete_option( 'site_chat_contact_url' );
 delete_option( 'site_chat_newsletter_url' );

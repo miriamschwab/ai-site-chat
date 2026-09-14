@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.8.0 — 2026-09-14
+
+- Added: `site_chat_get_context_stats()` plus the `site-chat/get-context-stats` ability — total characters against the cap, a `truncated` flag, record count and average, a per-post-type breakdown (items, characters, share, average, active limit), and the largest individual records.
+- Added: the "View Content Index" debug screen renders that breakdown as a table, with the five largest records listed beneath it.
+- Changed: the context builder is split into `site_chat_build_context_records()` (produces per-record text plus metadata) and `site_chat_get_context()` (caches the assembled string). The stats reporter measures the same records the AI receives and assembles them the same way, separators included, so the reported total cannot drift from the real one — a second measuring implementation would have.
+
+## 2.7.1 — 2026-09-14
+
+- Fixed: The per-post-type character inputs were `min="1" step="50"`, making the valid values 1, 51, 101 … 1451, 1501. The 1,500 default that the fields render with was itself invalid, so the browser blocked submission of the entire settings form with "the two nearest valid values are 1451 and 1501". Changed to `step="1"`. Any arbitrary limit is a legitimate value here, so there was never a reason to quantise the input.
+
+## 2.7.0 — 2026-09-14
+
+- Added: Per-post-type content character limits, editable per type on the settings page and filterable via `site_chat_context_post_content_limit`. Short-form post types (changelog entries, release notes) can now be capped well below the 1,500-character default so they stop crowding out long-form content.
+- Added: Excluded Custom Fields setting plus the `site_chat_excluded_fields` filter. Newline-separated field name patterns, case-insensitive, `*` wildcard supported at either end.
+- Fixed: ACF field values went into the context index with markup intact. `Media Embed`-style fields carrying iframe HTML — and in one case the entire minified `wp-embed.min.js` source inside a `<script>` block — were being sent to the Anthropic API as prompt text on every request. Field values now pass through `wp_strip_all_tags()` (which drops script and style *contents*, not just their tags), get their whitespace collapsed, and are capped at `SITE_CHAT_MAX_FIELD_CHARS` (500), filterable via `site_chat_max_field_chars`.
+- Added: `post_type_limits` and `excluded_fields` exposed through `site-chat/get-settings` and `site-chat/update-settings`.
+- Added: `SITE_CHAT_MAX_FIELD_CHARS` constant.
+- Fixed: The context cache was only invalidated on `save_post` and deactivation, so changing `site_chat_post_types` (pre-existing) or either new option left the stale index in place for up to 12 hours — which reads as the setting having no effect. `update_option_*` / `add_option_*` hooks now clear it for all three.
+
 ## 2.6.1 — 2026-08-28
 
 - Added: Chat log answers now render their Markdown — bold, italics, inline code, links, headings, lists, blockquotes and rules — instead of showing raw syntax, matching how visitors saw the answer in the chat widget. Collapsed previews show clean plain text.

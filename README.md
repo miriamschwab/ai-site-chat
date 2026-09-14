@@ -15,7 +15,9 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 - **Conversation logging** (opt-in) with admin-viewable log page
 - **Follow-up prompts** — "Yes please" / "No, thanks" buttons after each response, with configurable Contact and Newsletter CTA links
 - **Markdown rendering** in chat responses with clickable links
-- **Post type selector** — choose exactly which content types to include in the AI's context
+- **Post type selector** — choose exactly which content types to include in the AI's context, each with its own per-item character limit so short-form types don't crowd out long-form content
+- **Excluded custom fields** — leave presentation-only fields out of the index by name, with `*` wildcards supported
+- **Content index stats** — a per-post-type breakdown and the largest individual records, on the settings screen and through the Abilities API
 - **Custom instructions** — append your own instructions to the system prompt
 - **Privacy policy** content auto-registered with WordPress
 
@@ -27,7 +29,9 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 4. The full index is sent as a system message to Claude Haiku, with the visitor's question as the user message
 5. The AI response is streamed back and rendered in the widget with Markdown formatting
 
-Content is capped at 1,500 characters per post and 200,000 characters total to stay within model context limits.
+Content is capped at 200,000 characters total to stay within model context limits, and at 1,500 characters per post by default. That per-post cap is set per post type, so a type whose entries are short and numerous can be capped lower. Custom field values have their markup stripped and are capped at 500 characters each.
+
+Use **View Content Index** on the settings page to see the current size, where the characters are going by post type, and which individual records are largest.
 
 ## Installation
 
@@ -80,7 +84,8 @@ This plugin exposes abilities for the [WordPress Abilities API](https://develope
 | Ability | Access | Description |
 |---|---|---|
 | `site-chat/get-settings` | Always on | Returns all plugin settings. The API key is masked — only the last 4 characters are returned |
+| `site-chat/get-context-stats` | Always on | Returns the content index size against the cap, whether it is being truncated, a per-post-type breakdown (items, characters, share, average, active limit), and the largest individual records. Accepts `largest` (0–50, default 10) |
 | `site-chat/get-logs` | Always on | Returns recent chat conversations ordered newest first. Accepts `per_page` (1–100, default 20) |
 | `site-chat/update-settings` | Always on (destructive) | Updates one or more settings. Pass only the fields you want to change. The API key cannot be changed via this ability. AI tools will ask for confirmation before running. |
 
-**Updatable fields via `update-settings`:** `enabled`, `rate_limit`, `custom_instructions`, `log_enabled`, `contact_url`, `newsletter_url`
+**Updatable fields via `update-settings`:** `enabled`, `rate_limit`, `custom_instructions`, `post_type_limits`, `excluded_fields`, `log_enabled`, `contact_url`, `newsletter_url`

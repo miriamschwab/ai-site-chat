@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.6.1
+ * Version:           2.8.0
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,9 +20,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.6.1' );
+define( 'SITE_CHAT_VERSION', '2.8.0' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
+define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
 
 require_once plugin_dir_path( __FILE__ ) . 'includes/abilities.php';
 
@@ -200,6 +201,22 @@ add_action(
 		);
 		register_setting(
 			'site_chat',
+			'site_chat_post_type_limits',
+			array(
+				'sanitize_callback' => 'site_chat_sanitize_post_type_limits',
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_excluded_fields',
+			array(
+				'sanitize_callback' => function ( $val ) {
+					return mb_substr( sanitize_textarea_field( $val ), 0, 2000 );
+				},
+			)
+		);
+		register_setting(
+			'site_chat',
 			'site_chat_log_enabled',
 			array(
 				'sanitize_callback' => 'rest_sanitize_boolean',
@@ -225,6 +242,142 @@ add_action(
 		);
 	}
 );
+
+/**
+ * Sanitize the per-post-type content length map.
+ *
+ * @param mixed $val Raw option value: post type slug => character limit.
+ * @return array<string, int> Sanitized map.
+ */
+function site_chat_sanitize_post_type_limits( $val ) {
+	if ( ! is_array( $val ) ) {
+		return array();
+	}
+	$out = array();
+	foreach ( $val as $slug => $limit ) {
+		$slug  = sanitize_key( $slug );
+		$limit = absint( $limit );
+		if ( '' === $slug || 0 === $limit ) {
+			continue;
+		}
+		$out[ $slug ] = min( $limit, SITE_CHAT_MAX_CONTEXT_CHARS );
+	}
+	return $out;
+}
+
+/**
+ * Maximum characters of content one post of a given type may contribute.
+ *
+ * Short-form types (changelogs, release notes, link roundups) can be capped well
+ * below the global default so they do not crowd out long-form content.
+ *
+ * @param string $post_type Post type slug.
+ * @return int Character limit, always at least 1.
+ */
+function site_chat_post_content_limit( $post_type ) {
+	$limits = get_option( 'site_chat_post_type_limits', array() );
+	$limit  = SITE_CHAT_MAX_POST_CONTENT_CHARS;
+
+	if ( is_array( $limits ) && ! empty( $limits[ $post_type ] ) ) {
+		$limit = (int) $limits[ $post_type ];
+	}
+
+	/**
+	 * Filters the per-post content character limit used when building the context index.
+	 *
+	 * @param int    $limit     Character limit for this post type.
+	 * @param string $post_type Post type slug.
+	 */
+	$limit = (int) apply_filters( 'site_chat_context_post_content_limit', $limit, $post_type );
+
+	return max( 1, $limit );
+}
+
+/**
+ * Custom field names excluded from the context index.
+ *
+ * Names are matched case-insensitively and may use `*` as a wildcard, so
+ * `media_*` and `*_eyebrow` both work. Presentation-only fields (layout widths,
+ * embed markup, link labels, machine-format dates) cost context budget without
+ * telling the model anything it can use.
+ *
+ * @return string[] Patterns to exclude.
+ */
+function site_chat_excluded_fields() {
+	$raw  = (string) get_option( 'site_chat_excluded_fields', '' );
+	$list = preg_split( '/[\r\n,]+/', $raw );
+	$list = is_array( $list ) ? array_map( 'trim', $list ) : array();
+
+	/**
+	 * Filters the custom field name patterns excluded from the context index.
+	 *
+	 * @param string[] $list Patterns, which may contain `*` wildcards.
+	 */
+	$list = apply_filters( 'site_chat_excluded_fields', $list );
+
+	$list = array_filter( (array) $list, 'is_string' );
+	$list = array_filter(
+		array_map( 'trim', $list ),
+		function ( $pattern ) {
+			return '' !== $pattern;
+		}
+	);
+
+	return array_values( array_unique( $list ) );
+}
+
+/**
+ * Whether a custom field name matches any exclusion pattern.
+ *
+ * @param string   $field_key Field name.
+ * @param string[] $excluded  Patterns from site_chat_excluded_fields().
+ * @return bool True when the field should be skipped.
+ */
+function site_chat_is_field_excluded( $field_key, array $excluded ) {
+	foreach ( $excluded as $pattern ) {
+		$regex = '/^' . str_replace( '\*', '.*', preg_quote( $pattern, '/' ) ) . '$/i';
+		if ( preg_match( $regex, $field_key ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Normalize a custom field value for the context index.
+ *
+ * Strips markup (including the contents of script and style blocks, so embed
+ * code cannot leak into the prompt as text), collapses whitespace, and caps the
+ * length so one field cannot dominate a record.
+ *
+ * @param mixed  $value     Raw field value.
+ * @param string $field_key Field name, passed to the length filter.
+ * @param string $post_type Post type slug, passed to the length filter.
+ * @return string Cleaned value, possibly empty.
+ */
+function site_chat_clean_field_value( $value, $field_key, $post_type ) {
+	if ( ! is_scalar( $value ) ) {
+		return '';
+	}
+
+	$value = wp_strip_all_tags( (string) $value );
+	$value = trim( preg_replace( '/\s+/', ' ', $value ) );
+
+	/**
+	 * Filters the maximum characters a single custom field may contribute.
+	 *
+	 * @param int    $limit     Character limit. 0 disables the cap.
+	 * @param string $field_key Field name.
+	 * @param string $post_type Post type slug.
+	 */
+	$limit = (int) apply_filters( 'site_chat_max_field_chars', SITE_CHAT_MAX_FIELD_CHARS, $field_key, $post_type );
+
+	if ( $limit > 0 ) {
+		$value = mb_substr( $value, 0, $limit );
+	}
+
+	return $value;
+}
 
 /**
  * Post type slugs that are never useful as chat context.
@@ -354,11 +507,45 @@ function site_chat_settings_page() {
 									<?php checked( in_array( $slug, $active, true ) ); ?> />
 								<?php echo esc_html( $label ); ?>
 								<span style="color:#888;font-size:12px;">(<?php echo esc_html( $slug ); ?>)</span>
+								<input type="number" min="1" step="1"
+									name="site_chat_post_type_limits[<?php echo esc_attr( $slug ); ?>]"
+									value="<?php echo absint( site_chat_post_content_limit( $slug ) ); ?>"
+									style="width:90px;margin-left:8px;" />
+								<span style="color:#888;font-size:12px;"><?php esc_html_e( 'chars max', 'site-chat' ); ?></span>
 							</label>
 							<?php
 						}
 						?>
 						<p class="description"><?php esc_html_e( 'Choose which post types the AI can draw on when answering questions. Uncheck framework types like Elementor templates or ACF configuration — they consume context budget without adding useful content.', 'site-chat' ); ?></p>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %s: default per-post character limit */
+								esc_html__( 'The character box next to each type caps how much of one item\'s content is indexed (default %s). Lower it for short-form types like changelog or release-note entries, so long-form content keeps more of the budget.', 'site-chat' ),
+								esc_html( number_format( SITE_CHAT_MAX_POST_CONTENT_CHARS ) )
+							);
+							?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Excluded Custom Fields', 'site-chat' ); ?></th>
+					<td>
+						<textarea name="site_chat_excluded_fields" class="large-text code" rows="4"
+							placeholder="media_embed&#10;*_eyebrow&#10;text_width"
+							><?php echo esc_textarea( get_option( 'site_chat_excluded_fields', '' ) ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Optional. Custom field names to leave out of the index, one per line. Matching ignores case and accepts * as a wildcard, so media_* and *_eyebrow both work.', 'site-chat' ); ?>
+						</p>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %s: per-field character limit */
+								esc_html__( 'Use this for fields that cost context without adding meaning: embed markup, link labels like "watch" or "listen", layout settings, and machine-format dates that sit next to a readable one. Markup is stripped from every field that is indexed, and each one is capped at %s characters.', 'site-chat' ),
+								esc_html( number_format( SITE_CHAT_MAX_FIELD_CHARS ) )
+							);
+							?>
+						</p>
 					</td>
 				</tr>
 				<tr>
@@ -439,6 +626,51 @@ function site_chat_settings_page() {
 			);
 			echo '</strong></p>';
 			echo '<p>' . esc_html__( 'Post types being indexed: ', 'site-chat' ) . '<code>' . esc_html( implode( ', ', $post_types ) ) . '</code></p>';
+
+			// Breakdown of where the characters actually go, so a post type or a
+			// single oversized record that is crowding out the budget is visible
+			// without reading the whole index.
+			$stats = site_chat_get_context_stats( 5 );
+
+			echo '<table class="widefat striped" style="max-width:760px;margin-bottom:16px;"><thead><tr>';
+			echo '<th>' . esc_html__( 'Post type', 'site-chat' ) . '</th>';
+			echo '<th>' . esc_html__( 'Items', 'site-chat' ) . '</th>';
+			echo '<th>' . esc_html__( 'Characters', 'site-chat' ) . '</th>';
+			echo '<th>' . esc_html__( 'Share', 'site-chat' ) . '</th>';
+			echo '<th>' . esc_html__( 'Average', 'site-chat' ) . '</th>';
+			echo '<th>' . esc_html__( 'Limit', 'site-chat' ) . '</th>';
+			echo '</tr></thead><tbody>';
+			foreach ( $stats['by_post_type'] as $row ) {
+				echo '<tr>';
+				echo '<td>' . esc_html( $row['label'] ) . ' <span style="color:#888;">(' . esc_html( $row['post_type'] ) . ')</span></td>';
+				echo '<td>' . absint( $row['items'] ) . '</td>';
+				echo '<td>' . esc_html( number_format( $row['chars'] ) ) . '</td>';
+				echo '<td>' . esc_html( number_format( $row['percent_of_total'], 1 ) ) . '%</td>';
+				echo '<td>' . esc_html( number_format( $row['average_chars'] ) ) . '</td>';
+				echo '<td>' . esc_html( number_format( $row['limit'] ) ) . '</td>';
+				echo '</tr>';
+			}
+			echo '</tbody></table>';
+
+			if ( ! empty( $stats['largest_records'] ) ) {
+				echo '<p><strong>' . esc_html__( 'Largest individual records', 'site-chat' ) . '</strong></p><ol style="margin-bottom:16px;">';
+				foreach ( $stats['largest_records'] as $record ) {
+					printf(
+						'<li>%1$s <span style="color:#888;">(%2$s)</span> — %3$s</li>',
+						esc_html( $record['title'] ),
+						esc_html( $record['post_type'] ),
+						esc_html(
+							sprintf(
+								/* translators: %s: character count */
+								__( '%s characters', 'site-chat' ),
+								number_format( $record['chars'] )
+							)
+						)
+					);
+				}
+				echo '</ol>';
+			}
+
 			echo '<textarea readonly style="width:100%;height:400px;font-family:monospace;font-size:12px;">' . esc_textarea( $context ) . '</textarea>';
 		}
 		?>
@@ -898,18 +1130,18 @@ function site_chat_walk_elementor( array $elements ) {
 }
 
 /**
- * Build (and cache) the plain-text content index sent to the AI as context.
+ * Build the individual records that make up the content index.
  *
- * @return string Concatenated site content, capped at SITE_CHAT_MAX_CONTEXT_CHARS.
+ * Kept separate from site_chat_get_context() so the stats reporter measures the
+ * same records the AI actually receives, rather than a second implementation
+ * that could drift away from it.
+ *
+ * @return array<int, array{post_type: string, label: string, title: string, chars: int, text: string}>
  */
-function site_chat_get_context() {
-	$cached = get_transient( 'site_chat_context_cache' );
-	if ( false !== $cached ) {
-		return $cached;
-	}
-
-	$parts      = array();
-	$post_types = site_chat_active_post_types();
+function site_chat_build_context_records() {
+	$records         = array();
+	$post_types      = site_chat_active_post_types();
+	$excluded_fields = site_chat_excluded_fields();
 
 	foreach ( $post_types as $type ) {
 		$type_obj   = get_post_type_object( $type );
@@ -965,7 +1197,8 @@ function site_chat_get_context() {
 			}
 
 			// Cap per-post content so no single post consumes the entire context budget.
-			$content = mb_substr( $content, 0, SITE_CHAT_MAX_POST_CONTENT_CHARS );
+			// The limit is per post type, so short-form types can be capped lower.
+			$content = mb_substr( $content, 0, site_chat_post_content_limit( $type ) );
 
 			if ( $content ) {
 				$entry .= 'Content: ' . $content . "\n";
@@ -991,25 +1224,67 @@ function site_chat_get_context() {
 				$acf_fields = get_fields( $post->ID );
 				if ( $acf_fields && is_array( $acf_fields ) ) {
 					foreach ( $acf_fields as $field_key => $field_value ) {
+						if ( site_chat_is_field_excluded( $field_key, $excluded_fields ) ) {
+							continue;
+						}
+
 						$field_label = ucwords( str_replace( array( '_', '-' ), ' ', $field_key ) );
+
 						if ( is_string( $field_value ) && '' !== $field_value ) {
-							$entry .= $field_label . ': ' . $field_value . "\n";
+							$clean = site_chat_clean_field_value( $field_value, $field_key, $type );
+							if ( '' !== $clean ) {
+								$entry .= $field_label . ': ' . $clean . "\n";
+							}
 						} elseif ( is_array( $field_value ) && ! empty( $field_value ) ) {
 							// Flat array of scalars (checkbox, multi-select, etc.).
 							$flat = array_filter( $field_value, 'is_scalar' );
 							if ( count( $flat ) === count( $field_value ) ) {
-								$entry .= $field_label . ': ' . implode( ', ', $flat ) . "\n";
+								$clean = array_filter(
+									array_map(
+										function ( $item ) use ( $field_key, $type ) {
+											return site_chat_clean_field_value( $item, $field_key, $type );
+										},
+										$flat
+									),
+									function ( $item ) {
+										return '' !== $item;
+									}
+								);
+								if ( ! empty( $clean ) ) {
+									$entry .= $field_label . ': ' . implode( ', ', $clean ) . "\n";
+								}
 							}
 						}
 					}
 				}
 			}
 
-			$parts[] = $entry;
+			$records[] = array(
+				'post_type' => $type,
+				'label'     => $type_label,
+				'title'     => $post->post_title,
+				'chars'     => mb_strlen( $entry ),
+				'text'      => $entry,
+			);
 		}
 	}
 
-	$context = implode( "\n---\n", $parts );
+	return $records;
+}
+
+/**
+ * Build (and cache) the plain-text content index sent to the AI as context.
+ *
+ * @return string Concatenated site content, capped at SITE_CHAT_MAX_CONTEXT_CHARS.
+ */
+function site_chat_get_context() {
+	$cached = get_transient( 'site_chat_context_cache' );
+	if ( false !== $cached ) {
+		return $cached;
+	}
+
+	$records = site_chat_build_context_records();
+	$context = implode( "\n---\n", wp_list_pluck( $records, 'text' ) );
 
 	// Safety cap: prevent oversized payloads if content grows significantly.
 	$context = mb_substr( $context, 0, SITE_CHAT_MAX_CONTEXT_CHARS );
@@ -1017,6 +1292,93 @@ function site_chat_get_context() {
 	set_transient( 'site_chat_context_cache', $context, 12 * HOUR_IN_SECONDS );
 
 	return $context;
+}
+
+/**
+ * Measure the content index: total size, per-post-type breakdown, largest records.
+ *
+ * Rebuilds the index from the database rather than reading the cached string, so
+ * the figures are current. That is a query per indexed post type plus meta reads,
+ * so this is for admin screens and scheduled reporting, not per-request use.
+ *
+ * @param int $largest How many of the biggest individual records to return.
+ * @return array{
+ *     total_chars: int,
+ *     cap_chars: int,
+ *     percent_of_cap: float,
+ *     truncated: bool,
+ *     record_count: int,
+ *     average_record_chars: int,
+ *     by_post_type: array<int, array{post_type: string, label: string, items: int, chars: int, percent_of_total: float, average_chars: int, limit: int}>,
+ *     largest_records: array<int, array{post_type: string, title: string, chars: int}>
+ * }
+ */
+function site_chat_get_context_stats( $largest = 10 ) {
+	$records = site_chat_build_context_records();
+
+	// Measured the same way site_chat_get_context() assembles it, so the total
+	// matches the string that is actually sent, separators included.
+	$assembled   = implode( "\n---\n", wp_list_pluck( $records, 'text' ) );
+	$total_chars = mb_strlen( $assembled );
+
+	$by_type = array();
+	foreach ( $records as $record ) {
+		$type = $record['post_type'];
+		if ( ! isset( $by_type[ $type ] ) ) {
+			$by_type[ $type ] = array(
+				'post_type' => $type,
+				'label'     => $record['label'],
+				'items'     => 0,
+				'chars'     => 0,
+			);
+		}
+		++$by_type[ $type ]['items'];
+		$by_type[ $type ]['chars'] += $record['chars'];
+	}
+
+	foreach ( $by_type as $type => $row ) {
+		$by_type[ $type ]['percent_of_total'] = $total_chars > 0 ? round( $row['chars'] / $total_chars * 100, 1 ) : 0.0;
+		$by_type[ $type ]['average_chars']    = (int) round( $row['chars'] / $row['items'] );
+		$by_type[ $type ]['limit']            = site_chat_post_content_limit( $type );
+	}
+
+	usort(
+		$by_type,
+		function ( $a, $b ) {
+			return $b['chars'] <=> $a['chars'];
+		}
+	);
+
+	$biggest = $records;
+	usort(
+		$biggest,
+		function ( $a, $b ) {
+			return $b['chars'] <=> $a['chars'];
+		}
+	);
+	$biggest = array_slice( $biggest, 0, max( 0, (int) $largest ) );
+
+	$largest_records = array();
+	foreach ( $biggest as $record ) {
+		$largest_records[] = array(
+			'post_type' => $record['post_type'],
+			'title'     => $record['title'],
+			'chars'     => $record['chars'],
+		);
+	}
+
+	$count = count( $records );
+
+	return array(
+		'total_chars'          => $total_chars,
+		'cap_chars'            => SITE_CHAT_MAX_CONTEXT_CHARS,
+		'percent_of_cap'       => round( $total_chars / SITE_CHAT_MAX_CONTEXT_CHARS * 100, 1 ),
+		'truncated'            => $total_chars > SITE_CHAT_MAX_CONTEXT_CHARS,
+		'record_count'         => $count,
+		'average_record_chars' => $count > 0 ? (int) round( $total_chars / $count ) : 0,
+		'by_post_type'         => $by_type,
+		'largest_records'      => $largest_records,
+	);
 }
 
 // Clear context cache whenever a post is saved so new content appears immediately.
@@ -1029,6 +1391,25 @@ add_action(
 		delete_transient( 'site_chat_context_cache' );
 	}
 );
+
+// Clear the context cache when a setting that changes what gets indexed is saved.
+// Without this, a new limit or exclusion has no visible effect until the 12-hour
+// transient expires, which reads as the setting not working.
+foreach ( array( 'site_chat_post_types', 'site_chat_post_type_limits', 'site_chat_excluded_fields' ) as $site_chat_indexed_option ) {
+	add_action(
+		'update_option_' . $site_chat_indexed_option,
+		function () {
+			delete_transient( 'site_chat_context_cache' );
+		}
+	);
+	add_action(
+		'add_option_' . $site_chat_indexed_option,
+		function () {
+			delete_transient( 'site_chat_context_cache' );
+		}
+	);
+}
+unset( $site_chat_indexed_option );
 
 // ---------------------------------------------------------------------------
 // REST endpoint

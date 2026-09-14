@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.6.1
+Stable tag: 2.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -41,6 +41,7 @@ This plugin sends your site's published content and visitor questions to the Ant
 This plugin exposes the following abilities for the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) (WordPress 6.9+), discoverable by AI agents via the [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin:
 
 * `site-chat/get-settings` — Read-only. Returns all plugin settings, with the API key masked (last 4 characters only).
+* `site-chat/get-context-stats` — Read-only. Measures the content index: total characters against the cap, a per-post-type breakdown, and the largest individual records.
 * `site-chat/get-logs` — Read-only. Returns recent chat conversations, newest first.
 * `site-chat/update-settings` — Updates one or more settings (the API key cannot be changed via this ability). Marked destructive, so compliant AI tools must ask for confirmation before running it.
 
@@ -72,7 +73,9 @@ Yes. Use the **Custom Instructions** field in Settings > Site Chat to add person
 
 = What if my site has a lot of content? =
 
-The plugin caps the context sent to the API at 200,000 characters. If your site is very large, the most recently updated content will be included first and older content may be truncated. Developers can also use the `site_chat_context_posts_limit` filter to cap posts per type.
+The plugin caps the context sent to the API at 200,000 characters. If your site is very large, the most recently updated content will be included first and older content may be truncated.
+
+Three settings help you fit more in: uncheck post types you don't need, set a lower per-item character limit next to any short-form type, and list presentation-only custom fields (embed markup, link labels, layout settings) under Excluded Custom Fields. Use "View Content Index" to see the exact character count before and after. Developers can also use the `site_chat_context_posts_limit`, `site_chat_context_post_content_limit`, `site_chat_excluded_fields` and `site_chat_max_field_chars` filters.
 
 = Can I change the rate limit? =
 
@@ -88,6 +91,21 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.8.0 - 2026-09-14 =
+* Added: "View Content Index" now shows a breakdown table — characters, share of the total, average and current limit per post type — plus the five largest individual records. Finding what is consuming the budget no longer means reading the whole index.
+* Added: `site-chat/get-context-stats` ability, so an AI agent or a scheduled routine can read the index size, the per-type breakdown and the biggest records without opening wp-admin.
+
+= 2.7.1 - 2026-09-14 =
+* Fixed: The per-post-type character boxes rejected the values they shipped with. The number inputs used a step of 50 starting from 1, so the 1,500 default — and any round number — failed browser validation and blocked the whole settings form from saving.
+
+= 2.7.0 - 2026-09-14 =
+* Added: Per-post-type character limits. Each indexed post type now has its own "chars max" box on the settings page, so short-form types like changelog entries can be capped well below the 1,500-character default and leave more budget for long-form content.
+* Added: Excluded Custom Fields setting. List custom field names to leave out of the context index, one per line, with `*` wildcards supported (`media_*`, `*_eyebrow`).
+* Fixed: Custom field values were indexed with their markup intact, so embed code — including the full contents of `<script>` blocks — was being sent to the API as prompt text. Markup is now stripped from every indexed field, and each field is capped at 500 characters.
+* Added: Filters `site_chat_context_post_content_limit`, `site_chat_excluded_fields` and `site_chat_max_field_chars`.
+* Added: `post_type_limits` and `excluded_fields` are readable and writable through the Abilities API.
+* Fixed: Changing which post types are indexed had no effect until the 12-hour content cache expired. The cache is now cleared as soon as any indexing setting is saved.
 
 = 2.6.1 - 2026-08-28 =
 * Added: Chat log answers now render their Markdown — bold, italics, inline code, links, headings, lists, blockquotes and rules — instead of showing raw syntax, matching how visitors saw the answer in the chat widget. Collapsed previews show clean plain text.

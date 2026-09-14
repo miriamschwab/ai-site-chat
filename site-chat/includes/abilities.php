@@ -78,6 +78,14 @@ function site_chat_register_abilities() {
 						'type'  => 'array',
 						'items' => array( 'type' => 'string' ),
 					),
+					'post_type_limits'    => array(
+						'type'        => 'object',
+						'description' => 'Per-post-type content character limits. Types absent here use the plugin default.',
+					),
+					'excluded_fields'     => array(
+						'type'        => 'string',
+						'description' => 'Newline-separated custom field name patterns excluded from the index.',
+					),
 					'log_enabled'         => array( 'type' => 'boolean' ),
 					'contact_url'         => array( 'type' => 'string' ),
 					'newsletter_url'      => array( 'type' => 'string' ),
@@ -92,10 +100,69 @@ function site_chat_register_abilities() {
 					'rate_limit'          => (int) get_option( 'site_chat_rate_limit', 10 ),
 					'custom_instructions' => (string) get_option( 'site_chat_custom_instructions', '' ),
 					'post_types'          => (array) get_option( 'site_chat_post_types', array() ),
+					'post_type_limits'    => (array) get_option( 'site_chat_post_type_limits', array() ),
+					'excluded_fields'     => (string) get_option( 'site_chat_excluded_fields', '' ),
 					'log_enabled'         => (bool) get_option( 'site_chat_log_enabled', 1 ),
 					'contact_url'         => (string) get_option( 'site_chat_contact_url', '' ),
 					'newsletter_url'      => (string) get_option( 'site_chat_newsletter_url', '' ),
 				);
+			},
+			'meta'                => array(
+				'mcp'         => array( 'public' => true ),
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// --- get-context-stats (always available) ----------------------------
+
+	wp_register_ability(
+		'site-chat/get-context-stats',
+		array(
+			'label'               => __( 'Get Content Index Stats', 'site-chat' ),
+			'description'         => __( 'Measure the content index sent to the AI: total characters against the cap, a per-post-type breakdown, and the largest individual records. Use this to spot a post type or a single record crowding out the context budget. Rebuilds the index from the database, so it is for occasional checks rather than frequent polling.', 'site-chat' ),
+			'category'            => 'site-chat',
+			'input_schema'        => array(
+				'type'       => 'object',
+				'properties' => array(
+					'largest' => array(
+						'type'        => 'integer',
+						'minimum'     => 0,
+						'maximum'     => 50,
+						'description' => 'How many of the biggest individual records to return. Defaults to 10.',
+					),
+				),
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'total_chars'          => array( 'type' => 'integer' ),
+					'cap_chars'            => array( 'type' => 'integer' ),
+					'percent_of_cap'       => array( 'type' => 'number' ),
+					'truncated'            => array(
+						'type'        => 'boolean',
+						'description' => 'True when the index exceeds the cap, meaning the oldest items in the last-listed post type are being cut off.',
+					),
+					'record_count'         => array( 'type' => 'integer' ),
+					'average_record_chars' => array( 'type' => 'integer' ),
+					'by_post_type'         => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'object' ),
+					),
+					'largest_records'      => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'object' ),
+					),
+				),
+			),
+			'permission_callback' => fn() => current_user_can( 'manage_options' ),
+			'execute_callback'    => function ( $input = null ) {
+				$largest = isset( $input['largest'] ) ? absint( $input['largest'] ) : 10;
+				return site_chat_get_context_stats( min( 50, $largest ) );
 			},
 			'meta'                => array(
 				'mcp'         => array( 'public' => true ),
@@ -189,6 +256,14 @@ function site_chat_register_abilities() {
 						'type'        => 'string',
 						'description' => 'Custom system prompt instructions. Max 2000 characters.',
 					),
+					'post_type_limits'    => array(
+						'type'        => 'object',
+						'description' => 'Per-post-type content character limits, keyed by post type slug. Merged into the stored map; pass 0 to reset a type to the default.',
+					),
+					'excluded_fields'     => array(
+						'type'        => 'string',
+						'description' => 'Newline-separated custom field name patterns to exclude from the index. Accepts * wildcards. Max 2000 characters.',
+					),
 					'log_enabled'         => array(
 						'type'        => 'boolean',
 						'description' => 'Enable or disable conversation logging.',
@@ -229,6 +304,26 @@ function site_chat_register_abilities() {
 				if ( isset( $input['custom_instructions'] ) ) {
 					update_option( 'site_chat_custom_instructions', mb_substr( sanitize_textarea_field( $input['custom_instructions'] ), 0, 2000 ) );
 					$updated[] = 'custom_instructions';
+				}
+				if ( isset( $input['post_type_limits'] ) && is_array( $input['post_type_limits'] ) ) {
+					$limits = (array) get_option( 'site_chat_post_type_limits', array() );
+					foreach ( $input['post_type_limits'] as $slug => $limit ) {
+						$slug = sanitize_key( $slug );
+						if ( '' === $slug ) {
+							continue;
+						}
+						if ( 0 === absint( $limit ) ) {
+							unset( $limits[ $slug ] );
+							continue;
+						}
+						$limits[ $slug ] = absint( $limit );
+					}
+					update_option( 'site_chat_post_type_limits', site_chat_sanitize_post_type_limits( $limits ) );
+					$updated[] = 'post_type_limits';
+				}
+				if ( isset( $input['excluded_fields'] ) ) {
+					update_option( 'site_chat_excluded_fields', mb_substr( sanitize_textarea_field( $input['excluded_fields'] ), 0, 2000 ) );
+					$updated[] = 'excluded_fields';
 				}
 				if ( isset( $input['log_enabled'] ) ) {
 					update_option( 'site_chat_log_enabled', (bool) $input['log_enabled'] );

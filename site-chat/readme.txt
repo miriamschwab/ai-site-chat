@@ -2,9 +2,9 @@
 Contributors: miriamschwab
 Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.8.0
+Stable tag: 2.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,7 +49,7 @@ This plugin exposes the following abilities for the [WordPress Abilities API](ht
 
 1. Upload the `site-chat` folder to `/wp-content/plugins/`.
 2. Activate from **Plugins > Installed Plugins**.
-3. Go to **Settings > Site Chat** and enter your Anthropic API key.
+3. Go to **Settings > AI Site Chat** and enter your Anthropic API key.
 4. Check the **Enable chat widget** box and save.
 5. Visit your site — the chat button appears in the bottom-right corner.
 
@@ -69,7 +69,7 @@ Optionally. When **Log conversations** is enabled in Settings > AI Site Chat, qu
 
 = Can I customize what the AI says? =
 
-Yes. Use the **Custom Instructions** field in Settings > Site Chat to add persona guidance, tone instructions, or topic emphasis. These are appended to the system prompt.
+Yes. Use the **Custom Instructions** field in Settings > AI Site Chat to add persona guidance, tone instructions, or topic emphasis. These are appended to the system prompt.
 
 = What if my site has a lot of content? =
 
@@ -79,7 +79,7 @@ Three settings help you fit more in: uncheck post types you don't need, set a lo
 
 = Can I change the rate limit? =
 
-Yes. The default is 10 requests per IP per hour. Adjust it in **Settings > Site Chat**.
+Yes. The default is 10 requests per IP per hour. Adjust it in **Settings > AI Site Chat**.
 
 = Does this work with Elementor? =
 
@@ -88,9 +88,13 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 == Screenshots ==
 
 1. The floating chat widget on the frontend.
-2. Settings > Site Chat — API key, rate limit, and custom instructions.
+2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.8.1 - 2026-10-10 =
+* Fixed: the chat launcher button's accessible name ("Open site chat") didn't match its visible text ("Ask about this site"), which fails WCAG 2.5.3 Label in Name. Both now use the same string, so screen-reader and voice-control users get the name they see.
+* Changed: tested up to WordPress 7.1. The settings screen is now named correctly throughout this readme (Settings > AI Site Chat).
 
 = 2.8.0 - 2026-09-14 =
 * Added: "View Content Index" now shows a breakdown table — characters, share of the total, average and current limit per post type — plus the five largest individual records. Finding what is consuming the budget no longer means reading the whole index.

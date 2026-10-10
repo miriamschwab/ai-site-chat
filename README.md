@@ -12,7 +12,7 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 - **Automatic content indexing** — fetches all published content including custom post types, Elementor content, and ACF fields
 - **Smart caching** — 12-hour transient cache, automatically cleared when any post is saved
 - **Per-IP rate limiting** with configurable threshold and email alerts to the admin
-- **Conversation logging** (opt-in) with admin-viewable log page
+- **Conversation logging** (on by default, can be turned off) with admin-viewable log page
 - **Follow-up prompts** — "Yes please" / "No, thanks" buttons after each response, with configurable Contact and Newsletter CTA links
 - **Markdown rendering** in chat responses with clickable links
 - **Post type selector** — choose exactly which content types to include in the AI's context, each with its own per-item character limit so short-form types don't crowd out long-form content
@@ -27,7 +27,7 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 2. When a visitor asks a question, it hits the REST endpoint at `/wp-json/site-chat/v1/ask`
 3. The plugin fetches the cached content index (or builds it on first request)
 4. The full index is sent as a system message to Claude Haiku, with the visitor's question as the user message
-5. The AI response is streamed back and rendered in the widget with Markdown formatting
+5. The AI's answer comes back in a single response and is rendered in the widget with Markdown formatting
 
 Content is capped at 200,000 characters total to stay within model context limits, and at 1,500 characters per post by default. That per-post cap is set per post type, so a type whose entries are short and numerous can be capped lower. Custom field values have their markup stripped and are capped at 500 characters each.
 
@@ -52,7 +52,7 @@ You'll need an [Anthropic API key](https://console.anthropic.com/) — the plugi
 | Rate Limit | 10/hr | Max requests per visitor per hour |
 | Post Types | All | Which content types to include |
 | Custom Instructions | — | Extra instructions for the AI |
-| Logging | Off | Enable conversation logging |
+| Logging | On | Store visitor questions and AI answers |
 | Contact URL | — | CTA link shown after conversation |
 | Newsletter URL | — | CTA link shown after conversation |
 

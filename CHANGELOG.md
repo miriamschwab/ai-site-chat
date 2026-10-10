@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.1 — 2026-10-10
+
+- Fixed: the launcher button `#sc-toggle` had `aria-label="Open site chat"` while its visible text read "Ask about this site" — axe/Lighthouse `label-content-name-mismatch`, WCAG 2.5.3. Both now render from one translated string. The `aria-label` is kept (rather than removed) because the visible span is `display: none` at ≤420px, where the button is icon-only and would otherwise have no name. Open/closed state stays on `aria-expanded`.
+- Docs: readme.txt now says tested up to WordPress 7.1, and its settings path reads Settings > AI Site Chat. README.md now says logging is on by default (it always was in code) and no longer says answers are streamed, because they come back as a single response.
+
 ## 2.8.0 — 2026-09-14
 
 - Added: `site_chat_get_context_stats()` plus the `site-chat/get-context-stats` ability — total characters against the cap, a `truncated` flag, record count and average, a per-post-type breakdown (items, characters, share, average, active limit), and the largest individual records.

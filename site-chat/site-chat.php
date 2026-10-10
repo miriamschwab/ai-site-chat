@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.8.0
+ * Version:           2.8.1
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.8.0' );
+define( 'SITE_CHAT_VERSION', '2.8.1' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
@@ -1588,13 +1588,16 @@ add_action(
 		$newsletter_url   = esc_js( get_option( 'site_chat_newsletter_url', '' ) );
 		$label_contact    = esc_js( __( 'Contact us', 'site-chat' ) );
 		$label_newsletter = esc_js( __( 'Subscribe to newsletter', 'site-chat' ) );
+		// One string for the launcher's visible label and its accessible name (WCAG 2.5.3 Label in Name).
+		// The aria-label stays because the span is display:none at <=420px; open/closed is on aria-expanded.
+		$toggle_label = __( 'Ask about this site', 'site-chat' );
 		?>
 
 <div id="sc-widget" role="complementary" aria-label="<?php esc_attr_e( 'Chat with this site', 'site-chat' ); ?>">
 
-	<button id="sc-toggle" aria-label="<?php esc_attr_e( 'Open site chat', 'site-chat' ); ?>" aria-expanded="false" aria-controls="sc-panel">
+	<button id="sc-toggle" aria-label="<?php echo esc_attr( $toggle_label ); ?>" aria-expanded="false" aria-controls="sc-panel">
 		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-		<span id="sc-toggle-label"><?php esc_html_e( 'Ask about this site', 'site-chat' ); ?></span>
+		<span id="sc-toggle-label"><?php echo esc_html( $toggle_label ); ?></span>
 	</button>
 
 	<div id="sc-panel" hidden role="dialog" aria-label="<?php esc_attr_e( 'Site chat', 'site-chat' ); ?>" aria-modal="false">

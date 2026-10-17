@@ -29,7 +29,7 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 4. The full index is sent as a system message to Claude Haiku, with the visitor's question as the user message
 5. The AI's answer comes back in a single response and is rendered in the widget with Markdown formatting
 
-Content is capped at 200,000 characters total to stay within model context limits, and at 1,500 characters per post by default. That per-post cap is set per post type, so a type whose entries are short and numerous can be capped lower. Custom field values have their markup stripped and are capped at 500 characters each.
+Content is capped at 200,000 characters total — a cost and latency choice, not a model limit, since the current index is well inside the context window — and at 1,500 characters per post by default. That per-post cap is set per post type, so a type whose entries are short and numerous can be capped lower. Custom field values have their markup stripped and are capped at 500 characters each.
 
 Use **View Content Index** on the settings page to see the current size, where the characters are going by post type, and which individual records are largest.
 

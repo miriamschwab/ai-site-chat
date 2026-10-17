@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.8.1
+Stable tag: 2.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -91,6 +91,10 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.9.0 - 2026-10-17 =
+* Changed: answers now come from Claude Haiku 5.5, replacing Haiku 4.5. It sticks more closely to the rules the plugin gives it — link to the exact post, never to an outside site — and costs roughly eight times less per question.
+* Added: if the model declines a question, the widget now says so in a sentence instead of showing "Unexpected response from AI service."
 
 = 2.8.1 - 2026-10-10 =
 * Fixed: the chat launcher button's accessible name ("Open site chat") didn't match its visible text ("Ask about this site"), which fails WCAG 2.5.3 Label in Name. Both now use the same string, so screen-reader and voice-control users get the name they see.

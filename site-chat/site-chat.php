@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.8.1
+ * Version:           2.9.0
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.8.1' );
+define( 'SITE_CHAT_VERSION', '2.9.0' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
@@ -1516,7 +1516,7 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 	$response = wp_remote_post(
 		'https://api.anthropic.com/v1/messages',
 		array(
-			'timeout' => 30,
+			'timeout' => 45,
 			'headers' => array(
 				'Content-Type'      => 'application/json',
 				'x-api-key'         => $api_key,
@@ -1524,10 +1524,11 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 			),
 			'body'    => wp_json_encode(
 				array(
-					'model'      => 'claude-haiku-4-5-20251001',
-					'max_tokens' => 512,
-					'system'     => $system,
-					'messages'   => array(
+					'model'         => 'claude-haiku-5-5',
+					'max_tokens'    => 2048,
+					'output_config' => array( 'effort' => 'low' ),
+					'system'        => $system,
+					'messages'      => array(
 						array(
 							'role'    => 'user',
 							'content' => $question,
@@ -1548,11 +1549,27 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 		return new WP_Error( 'upstream_error', __( 'AI service returned an error.', 'site-chat' ), array( 'status' => 502 ) );
 	}
 
-	if ( empty( $body['content'][0]['text'] ) ) {
-		return new WP_Error( 'upstream_error', __( 'Unexpected response from AI service.', 'site-chat' ), array( 'status' => 502 ) );
+	if ( isset( $body['stop_reason'] ) && 'refusal' === $body['stop_reason'] ) {
+		return new WP_Error( 'declined', __( 'Sorry, I can\'t answer that one. Try asking about something on the site.', 'site-chat' ), array( 'status' => 422 ) );
 	}
 
-	$answer = $body['content'][0]['text'];
+	// The model thinks before answering, so the reply can open with one or more
+	// thinking blocks. Collect the text blocks by type — never by position.
+	$answer = '';
+
+	if ( ! empty( $body['content'] ) && is_array( $body['content'] ) ) {
+		foreach ( $body['content'] as $block ) {
+			if ( isset( $block['type'], $block['text'] ) && 'text' === $block['type'] ) {
+				$answer .= $block['text'];
+			}
+		}
+	}
+
+	$answer = trim( $answer );
+
+	if ( '' === $answer ) {
+		return new WP_Error( 'upstream_error', __( 'Unexpected response from AI service.', 'site-chat' ), array( 'status' => 502 ) );
+	}
 
 	if ( get_option( 'site_chat_log_enabled', 1 ) ) {
 		global $wpdb;

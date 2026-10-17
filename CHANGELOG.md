@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.0 — 2026-10-17
+
+- Changed: the model is now Claude Haiku 5.5 (`claude-haiku-5-5`), replacing Haiku 4.5. Better instruction following, which is what this plugin leans on most — its system prompt is almost entirely rules about exact URLs, no external links and the fixed closing line — and about eight times cheaper per question ($0.10/$0.50 per MTok against $1/$5, offset by a tokenizer that counts the same text as ~30% more tokens).
+- Changed: the answer is now read by walking `content` for blocks of `type: "text"` rather than taking `content[0]['text']`. Haiku 5.5 runs adaptive thinking by default, so a reply can open with one or more `thinking` blocks; the old positional read would have found no `text` key and failed every request with "Unexpected response from AI service." while the API returned 200.
+- Changed: `max_tokens` 512 → 2048 and `output_config.effort` set explicitly to `low`. Thinking counts against `max_tokens`, so the old cap could be consumed before any answer text was produced. The request timeout went 30s → 45s to cover a slower thinking turn.
+- Added: `stop_reason: "refusal"` is handled before `content` is read, returning a short message to the visitor. The safety classifiers that produce it are new for code coming from Haiku 4.5, and there is no server-side fallback for this model.
+
 ## 2.8.1 — 2026-10-10
 
 - Fixed: the launcher button `#sc-toggle` had `aria-label="Open site chat"` while its visible text read "Ask about this site" — axe/Lighthouse `label-content-name-mismatch`, WCAG 2.5.3. Both now render from one translated string. The `aria-label` is kept (rather than removed) because the visible span is `display: none` at ≤420px, where the button is icon-only and would otherwise have no name. Open/closed state stays on `aria-expanded`.

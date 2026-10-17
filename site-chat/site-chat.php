@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.9.0
+ * Version:           2.9.1
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.9.0' );
+define( 'SITE_CHAT_VERSION', '2.9.1' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
@@ -1526,7 +1526,7 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 				array(
 					'model'         => 'claude-haiku-5-5',
 					'max_tokens'    => 2048,
-					'output_config' => array( 'effort' => 'low' ),
+					'output_config' => array( 'effort' => 'high' ),
 					'system'        => $system,
 					'messages'      => array(
 						array(

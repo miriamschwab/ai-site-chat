@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.0
+Stable tag: 2.9.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -91,6 +91,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.9.1 - 2026-10-17 =
+* Fixed: answers could include a link to a site other than this one, which the plugin's own instructions rule out. The model is now set to think harder before it replies, which is what it needed in order to keep to the rule. Answers to questions that need real thought take a couple of seconds longer; short ones are unchanged.
 
 = 2.9.0 - 2026-10-17 =
 * Changed: answers now come from Claude Haiku 5.5, replacing Haiku 4.5. It sticks more closely to the rules the plugin gives it — link to the exact post, never to an outside site — and costs roughly eight times less per question.

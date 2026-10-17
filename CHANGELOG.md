@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.1 — 2026-10-17
+
+- Fixed: `output_config.effort` raised from `low` to `high`. At `low`, Haiku 5.5 did no thinking at all on the questions sampled (`thinking_tokens: 0` every time) and broke the system prompt's "never link to external sites" rule on 6 of 8 runs, linking to the plugin's own GitHub repository. At `high` the rule held on 10 of 10 runs, with the closing sentence intact on all of them. Haiku 4.5 did not break this rule, so it was a regression introduced by the 2.9.0 model move rather than a long-standing bug.
+- Cost of that change is about 2.7%, roughly $0.06/year at current volume: input is ~51,300 tokens per question against 217 output tokens at `low` and 498 at `high`, so about 98% of the spend is the content index being sent, which effort does not affect. Latency on a substantive answer roughly doubles, from about 2.4s to about 5.2s. Trivial questions are unaffected, because the model still skips thinking on them even at `high`.
+
 ## 2.9.0 — 2026-10-17
 
 - Changed: the model is now Claude Haiku 5.5 (`claude-haiku-5-5`), replacing Haiku 4.5. Better instruction following, which is what this plugin leans on most — its system prompt is almost entirely rules about exact URLs, no external links and the fixed closing line — and about eight times cheaper per question ($0.10/$0.50 per MTok against $1/$5, offset by a tokenizer that counts the same text as ~30% more tokens).

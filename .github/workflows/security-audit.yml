@@ -16,9 +16,26 @@ permissions:
 
 jobs:
   security:
-    runs-on: ubuntu-latest
+    # TEMPORARY PROBE — do not merge. Runs the audit on the current runner and on
+    # Ubuntu 26.04 side by side, to find out whether the ubuntu-latest migration
+    # (starting 2026-10-19) breaks this workflow. fail-fast is off so a failure on
+    # one OS still lets the other finish and be compared.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Report runner and toolchain
+        run: |
+          echo "runner label: ${{ matrix.os }}"
+          cat /etc/os-release | head -3
+          echo "--- preinstalled, before setup-php ---"
+          php -v 2>/dev/null | head -1 || echo "no ambient php"
+          composer -V 2>/dev/null || echo "no ambient composer"
+          python3 -V 2>/dev/null || echo "no ambient python3"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -48,9 +65,18 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Report pinned toolchain
+        run: |
+          echo "--- after setup-php / setup-python ---"
+          php -v | head -1
+          composer -V
+          python -V
+          phpcs --version
+
       - name: Semgrep SAST (PHP security)
         run: |
           pip install --quiet semgrep
+          semgrep --version
           semgrep scan --config p/php --error --quiet --metrics off \
             --exclude vendor --exclude vendor-prefixed --exclude node_modules --exclude archive --exclude llm-markdown \
             site-chat

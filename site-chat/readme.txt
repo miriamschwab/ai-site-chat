@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.1
+Stable tag: 2.9.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,7 @@ Site Chat indexes your published posts, pages, and custom post types, then uses 
 
 * Floating chat widget — bottom-right, opens on click
 * Answers questions based on your actual site content
+* Replies in the visitor's language, including the closing offer of more help
 * Supports all public post types (posts, pages, and any custom post types)
 * ACF field support — string-valued ACF fields are automatically included as context
 * Dark mode — respects both `prefers-color-scheme` and `data-theme="dark"`
@@ -77,6 +78,10 @@ The plugin caps the context sent to the API at 200,000 characters. If your site 
 
 Three settings help you fit more in: uncheck post types you don't need, set a lower per-item character limit next to any short-form type, and list presentation-only custom fields (embed markup, link labels, layout settings) under Excluded Custom Fields. Use "View Content Index" to see the exact character count before and after. Developers can also use the `site_chat_context_posts_limit`, `site_chat_context_post_content_limit`, `site_chat_excluded_fields` and `site_chat_max_field_chars` filters.
 
+= A visitor got "the answer is too long" or "your question is too long". What does that mean? =
+
+Questions are limited to 500 characters, counted as characters in any language. If an answer runs out of room before it is finished, the plugin removes the unfinished part rather than showing a cut-off sentence or broken link, and asks the visitor to try a more focused question. Each time that happens, one line with the token counts is written to the PHP error log.
+
 = Can I change the rate limit? =
 
 Yes. The default is 10 requests per IP per hour. Adjust it in **Settings > AI Site Chat**.
@@ -91,6 +96,12 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.9.2 - 2026-11-08 =
+* Fixed: a long answer could stop part-way, sometimes in the middle of a link, and be shown as if it were finished. Answers now have about four times the room, since the model's thinking and its answer share one limit. If an answer still runs out of room, the unfinished part is removed and the visitor is asked to try a more focused question.
+* Changed: when someone asks for everything on a broad topic, the chat now answers with the most relevant handful of items and points to the rest of the site, instead of trying to cover all of it and running out of room.
+* Changed: the closing "anything else?" line is now in the visitor's language. Before, it was always in English, even under an answer in Italian.
+* Fixed: questions near the 500-character limit could be rejected with "Invalid parameter(s): question" if they contained accented letters or a non-Latin script, because the server counted bytes instead of characters. Hebrew questions were effectively limited to about 250 characters. The server now counts characters, the same way the input box does, and a question that is too long gets a plain-language message.
 
 = 2.9.1 - 2026-10-17 =
 * Fixed: answers could include a link to a site other than this one, which the plugin's own instructions rule out. The model is now set to think harder before it replies, which is what it needed in order to keep to the rule. Answers to questions that need real thought take a couple of seconds longer; short ones are unchanged.
@@ -234,6 +245,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 * Initial release.
 
 == Upgrade Notice ==
+
+= 2.9.2 =
+Fixes long answers being cut off mid-sentence, and non-English questions near the 500-character limit being rejected. Recommended update.
 
 = 2.5.5 =
 Fixes the "Invalid request" chat error on sites behind a CDN or full-page cache. Recommended update.

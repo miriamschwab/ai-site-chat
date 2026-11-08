@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.9.1
+ * Version:           2.9.2
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,10 +20,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.9.1' );
+define( 'SITE_CHAT_VERSION', '2.9.2' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
+// Characters, not bytes: the input's maxlength counts characters, and so must the server.
+define( 'SITE_CHAT_MAX_QUESTION_CHARS', 500 );
 
 require_once plugin_dir_path( __FILE__ ) . 'includes/abilities.php';
 
@@ -1430,7 +1432,9 @@ add_action(
 						'required'          => true,
 						'sanitize_callback' => 'sanitize_text_field',
 						'validate_callback' => function ( $val ) {
-							return is_string( $val ) && strlen( trim( $val ) ) >= 1 && strlen( $val ) <= 500;
+							// Length is checked in the handler, so a visitor gets a readable
+							// message rather than "Invalid parameter(s): question".
+							return is_string( $val ) && '' !== trim( $val );
 						},
 					),
 				),
@@ -1438,6 +1442,31 @@ add_action(
 		);
 	}
 );
+
+/**
+ * Trim an answer that stopped at max_tokens back to its last complete line.
+ *
+ * The final line is unfinished by definition (it can end mid-link), so it is
+ * dropped. If what is left then ends on a line introducing more content (ending
+ * in a colon), that goes too, since what it introduced is gone.
+ *
+ * @param string $answer The answer text as returned, already trimmed.
+ * @return string The kept text, or '' if nothing complete remains.
+ */
+function site_chat_trim_cut_answer( $answer ) {
+	$lines = explode( "\n", (string) $answer );
+	array_pop( $lines );
+
+	$kept = rtrim( implode( "\n", $lines ) );
+
+	if ( '' !== $kept && ':' === mb_substr( $kept, -1 ) ) {
+		$lines = explode( "\n", $kept );
+		array_pop( $lines );
+		$kept = rtrim( implode( "\n", $lines ) );
+	}
+
+	return $kept;
+}
 
 /**
  * Handle a chat question from the public REST endpoint.
@@ -1454,6 +1483,19 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 	// request" errors. The IP rate limiter below is the primary abuse defence.
 	if ( ! get_option( 'site_chat_enabled', 1 ) ) {
 		return new WP_Error( 'disabled', __( 'Chat is currently disabled.', 'site-chat' ), array( 'status' => 503 ) );
+	}
+
+	// Checked before the rate limiter, so an over-long question does not use up a request.
+	if ( mb_strlen( (string) $request->get_param( 'question' ) ) > SITE_CHAT_MAX_QUESTION_CHARS ) {
+		return new WP_Error(
+			'question_too_long',
+			sprintf(
+				/* translators: %d: maximum number of characters in a question. */
+				__( 'Your question is too long. Please keep it under %d characters.', 'site-chat' ),
+				SITE_CHAT_MAX_QUESTION_CHARS
+			),
+			array( 'status' => 400 )
+		);
 	}
 
 	$ip       = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
@@ -1499,13 +1541,15 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 		. ' You may use Markdown formatting, but keep it light: bold, bullet lists and links only.'
 		. ' Do not use headings, tables, or code blocks — answers appear in a narrow chat bubble.'
 		. ' Do not wrap a link in bold.'
+		. ' If a question asks for everything on a broad topic, pick the most relevant items (no more than about six), give each one short sentence and its link, and say there is more on the site. Do not try to cover every item.'
 		. ' Only answer based on the site content provided below.'
 		. ' If a question is not covered by the site content, say so briefly.'
 		. ' Never make things up.'
 		. ' When linking to content, always use the exact URL listed for that specific post or page in the site index below, formatted as a Markdown link [title](URL).'
 		. ' Never link to a general section or archive page when the specific post URL is available.'
 		. ' Never link to external sites.'
-		. ' Always end your response with exactly this sentence on its own line: "Can I help you with anything else?"';
+		. ' Answer in the language the visitor wrote in.'
+		. ' Always end your response with one closing sentence on its own line asking whether you can help with anything else, in that same language. In English, use exactly: "Can I help you with anything else?"';
 
 	if ( $custom ) {
 		$system .= "\n\n" . $custom;
@@ -1516,7 +1560,7 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 	$response = wp_remote_post(
 		'https://api.anthropic.com/v1/messages',
 		array(
-			'timeout' => 45,
+			'timeout' => 60,
 			'headers' => array(
 				'Content-Type'      => 'application/json',
 				'x-api-key'         => $api_key,
@@ -1525,7 +1569,10 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 			'body'    => wp_json_encode(
 				array(
 					'model'         => 'claude-haiku-5-5',
-					'max_tokens'    => 2048,
+					// Thinking and the answer share this cap. 2048 cut a long Italian
+					// answer off mid-link (log id 150, 2026-11-02). Output is billed per
+					// token generated, so the headroom costs nothing unless it is used.
+					'max_tokens'    => 8192,
 					'output_config' => array( 'effort' => 'high' ),
 					'system'        => $system,
 					'messages'      => array(
@@ -1566,6 +1613,25 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 	}
 
 	$answer = trim( $answer );
+
+	// The reply ran out of tokens part-way. Never show a cut-off answer as if it
+	// were complete: drop the unfinished tail and say why.
+	if ( isset( $body['stop_reason'] ) && 'max_tokens' === $body['stop_reason'] ) {
+		$usage = isset( $body['usage'] ) && is_array( $body['usage'] ) ? $body['usage'] : array();
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Rare operational signal for the site owner; no user data is logged.
+		error_log(
+			sprintf(
+				'AI Site Chat: answer stopped at max_tokens (output_tokens=%d, thinking_tokens=%d, answer_chars=%d).',
+				isset( $usage['output_tokens'] ) ? (int) $usage['output_tokens'] : 0,
+				isset( $usage['output_tokens_details']['thinking_tokens'] ) ? (int) $usage['output_tokens_details']['thinking_tokens'] : 0,
+				mb_strlen( $answer )
+			)
+		);
+
+		$note   = __( 'Sorry, the answer is too long for the context of this chat. Can you try asking your question in a more focused way?', 'site-chat' );
+		$kept   = site_chat_trim_cut_answer( $answer );
+		$answer = '' === $kept ? $note : $kept . "\n\n" . $note;
+	}
 
 	if ( '' === $answer ) {
 		return new WP_Error( 'upstream_error', __( 'Unexpected response from AI service.', 'site-chat' ), array( 'status' => 502 ) );
@@ -1628,7 +1694,7 @@ add_action(
 		<div id="sc-input-row">
 			<input id="sc-input" type="text"
 				placeholder="<?php esc_attr_e( 'Ask a question...', 'site-chat' ); ?>"
-				maxlength="500"
+				maxlength="<?php echo (int) SITE_CHAT_MAX_QUESTION_CHARS; ?>"
 				aria-label="<?php esc_attr_e( 'Your question', 'site-chat' ); ?>"
 				autocomplete="off" />
 			<button id="sc-send" aria-label="<?php esc_attr_e( 'Send question', 'site-chat' ); ?>">

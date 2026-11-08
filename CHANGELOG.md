@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.9.2 — 2026-11-08
+
+- Fixed: an answer that hit `max_tokens` was shown to the visitor as complete. On Haiku 5.5 thinking and answer text share `max_tokens`, and at 2048 a long Italian answer stopped mid-link. `max_tokens` is now 8192 (still non-streaming, well under the ~16K point where streaming is needed), and the request timeout is 60s, up from 45s.
+- Added: `stop_reason: "max_tokens"` is handled. The unfinished last line is dropped (plus a dangling line ending in a colon), and a translatable note asks the visitor to try a more focused question. If nothing complete remains, the note alone is returned. Each occurrence writes one line to the PHP error log with output and thinking token counts, and no question text.
+- Changed: the system prompt now tells the model to answer "everything about X" questions with the most relevant items (about six at most), one sentence and a link each, and to say there is more on the site. Without it, a broad Italian enumeration request spent all 8,192 output tokens on thinking in 2 of 2 runs and returned no text.
+- Changed: the closing-line rule no longer requires the exact English sentence. The model answers in the visitor's language and closes with an offer of further help in that language. English answers still end with exactly "Can I help you with anything else?". Nothing in the plugin parses that sentence.
+- Docs: readme.txt and README.md now say the chat replies in the visitor's language, and readme.txt has a FAQ entry for the two new "too long" messages and a 2.9.2 upgrade notice.
+- Maintenance: CI pins semgrep to 1.183.0 (`security-audit.yml`), matching the local audit toolchain.
+- Fixed: the `question` parameter's validator used `strlen()` (bytes) against a limit of 500, while the input's `maxlength="500"` counts characters. Any multibyte character made a 500-character question exceed 500 bytes, so it failed validation and the visitor saw WordPress's raw "Invalid parameter(s): question". A Hebrew question hit this at ~250 characters. The limit is now `SITE_CHAT_MAX_QUESTION_CHARS` (500), used by both the input and the server, and checked with `mb_strlen()` in the handler, before the rate limiter, so an over-long question returns a translatable 400 message and does not use up a request.
+
 ## 2.9.1 — 2026-10-17
 
 - Fixed: `output_config.effort` raised from `low` to `high`. At `low`, Haiku 5.5 did no thinking at all on the questions sampled (`thinking_tokens: 0` every time) and broke the system prompt's "never link to external sites" rule on 6 of 8 runs, linking to the plugin's own GitHub repository. At `high` the rule held on 10 of 10 runs, with the closing sentence intact on all of them. Haiku 4.5 did not break this rule, so it was a regression introduced by the 2.9.0 model move rather than a long-standing bug.

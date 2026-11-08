@@ -15,6 +15,7 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 - **Conversation logging** (on by default, can be turned off) with admin-viewable log page
 - **Follow-up prompts** — "Yes please" / "No, thanks" buttons after each response, with configurable Contact and Newsletter CTA links
 - **Markdown rendering** in chat responses with clickable links
+- **Answers in the visitor's language**, including the closing offer of more help
 - **Post type selector** — choose exactly which content types to include in the AI's context, each with its own per-item character limit so short-form types don't crowd out long-form content
 - **Excluded custom fields** — leave presentation-only fields out of the index by name, with `*` wildcards supported
 - **Content index stats** — a per-post-type breakdown and the largest individual records, on the settings screen and through the Abilities API
@@ -27,7 +28,9 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 2. When a visitor asks a question, it hits the REST endpoint at `/wp-json/site-chat/v1/ask`
 3. The plugin fetches the cached content index (or builds it on first request)
 4. The full index is sent as a system message to Claude Haiku, with the visitor's question as the user message
-5. The AI's answer comes back in a single response and is rendered in the widget with Markdown formatting
+5. The AI's answer comes back in a single response and is rendered in the widget with Markdown formatting. If the answer runs out of room before it is finished, the unfinished part is dropped and the visitor is asked for a more focused question, so a cut-off sentence or broken link is never shown
+
+Questions are limited to 500 characters, counted as characters in any language.
 
 Content is capped at 200,000 characters total — a cost and latency choice, not a model limit, since the current index is well inside the context window — and at 1,500 characters per post by default. That per-post cap is set per post type, so a type whose entries are short and numerous can be capped lower. Custom field values have their markup stripped and are capped at 500 characters each.
 

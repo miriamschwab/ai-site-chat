@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.9.2
+ * Version:           2.9.3
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.9.2' );
+define( 'SITE_CHAT_VERSION', '2.9.3' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
@@ -2273,19 +2273,29 @@ add_action(
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ question: q })
 		})
-		.then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
+		// A reply that isn't JSON means the site answered with a page instead
+		// (maintenance mode during an update, a host timeout or error page),
+		// not that the visitor's connection failed. Tell those two apart.
+		.then(function (res) {
+			return res.json().then(
+				function (d) { return { ok: res.ok, data: d || {} }; },
+				function () { return { ok: false, unreadable: true, data: {} }; }
+			);
+		})
 		.then(function (r) {
 			removeTyping();
-			if (r.ok) {
+			if (r.ok && r.data.answer) {
 				addMsg(r.data.answer, 'ai');
 				showFollowUp();
+			} else if (r.unreadable) {
+				addMsg('<?php echo esc_js( __( 'The site couldn\'t answer just now. It may be updating or busy. Please try again in a moment.', 'site-chat' ) ); ?>', 'error');
 			} else {
 				addMsg(r.data.message || '<?php echo esc_js( __( 'Something went wrong. Please try again.', 'site-chat' ) ); ?>', 'error');
 			}
 		})
 		.catch(function () {
 			removeTyping();
-			addMsg('<?php echo esc_js( __( 'Network error. Please try again.', 'site-chat' ) ); ?>', 'error');
+			addMsg('<?php echo esc_js( __( 'Couldn\'t connect to the site. Check your internet connection and try again.', 'site-chat' ) ); ?>', 'error');
 		})
 		.finally(function () {
 			isLoading = false;

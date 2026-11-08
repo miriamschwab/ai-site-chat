@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.2
+Stable tag: 2.9.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,6 +96,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.9.3 - 2026-11-08 =
+* Fixed: when the site replied with an error page instead of an answer, for example while a plugin update is being installed, the chat said "Network error", which blamed the visitor's connection. It now says the site couldn't answer just now and to try again in a moment. A real connection failure gets its own message.
 
 = 2.9.2 - 2026-11-08 =
 * Fixed: a long answer could stop part-way, sometimes in the middle of a link, and be shown as if it were finished. Answers now have about four times the room, since the model's thinking and its answer share one limit. If an answer still runs out of room, the unfinished part is removed and the visitor is asked to try a more focused question.

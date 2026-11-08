@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.9.3 — 2026-11-08
+
+- Fixed: the widget showed "Network error. Please try again." for any reply it couldn't parse as JSON, because a failed `res.json()` fell into the same `catch` as a failed `fetch()`. Seen on live right after installing 2.9.2: WordPress's maintenance-mode page during the update. Unparseable replies now get "The site couldn't answer just now. It may be updating or busy. Please try again in a moment.", a rejected `fetch()` gets "Couldn't connect to the site. Check your internet connection and try again.", and a 200 reply without an `answer` falls through to the generic message rather than rendering `undefined`. Both strings are translatable.
+
 ## 2.9.2 — 2026-11-08
 
 - Fixed: an answer that hit `max_tokens` was shown to the visitor as complete. On Haiku 5.5 thinking and answer text share `max_tokens`, and at 2048 a long Italian answer stopped mid-link. `max_tokens` is now 8192 (still non-streaming, well under the ~16K point where streaming is needed), and the request timeout is 60s, up from 45s.

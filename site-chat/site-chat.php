@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.9.3
+ * Version:           2.10.0
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.9.3' );
+define( 'SITE_CHAT_VERSION', '2.10.0' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 define( 'SITE_CHAT_MAX_FIELD_CHARS', 500 );
@@ -154,9 +154,77 @@ add_action(
 	}
 );
 
+/**
+ * The widget's editable text settings, mapped to their maximum length in characters.
+ *
+ * @return array<string, int>
+ */
+function site_chat_widget_text_options() {
+	return array(
+		'site_chat_toggle_label' => 60,
+		'site_chat_header_text'  => 60,
+		'site_chat_welcome_text' => 200,
+	);
+}
+
+/**
+ * Sanitize one widget text setting: plain text, trimmed, capped at its maximum length.
+ *
+ * @param mixed  $val    Raw value.
+ * @param string $option Option name, a key of site_chat_widget_text_options().
+ * @return string
+ */
+function site_chat_sanitize_widget_text( $val, $option ) {
+	$limits = site_chat_widget_text_options();
+	$max    = isset( $limits[ $option ] ) ? $limits[ $option ] : 60;
+	return trim( mb_substr( sanitize_text_field( is_scalar( $val ) ? (string) $val : '' ), 0, $max ) );
+}
+
+/**
+ * Default, translatable text for a widget text setting.
+ *
+ * @param string $option Option name.
+ * @return string
+ */
+function site_chat_widget_text_default( $option ) {
+	switch ( $option ) {
+		case 'site_chat_toggle_label':
+			return __( 'Ask about this site', 'site-chat' );
+		case 'site_chat_header_text':
+			return __( '// ask me anything', 'site-chat' );
+		case 'site_chat_welcome_text':
+			return __( 'Ask me anything about this site', 'site-chat' );
+	}
+	return '';
+}
+
+/**
+ * Text the widget shows for a setting: the stored value, or the translated default when empty.
+ *
+ * Keeping the default out of the database means an untouched site keeps following its translation.
+ *
+ * @param string $option Option name.
+ * @return string
+ */
+function site_chat_widget_text( $option ) {
+	$stored = trim( (string) get_option( $option, '' ) );
+	return '' !== $stored ? $stored : site_chat_widget_text_default( $option );
+}
+
 add_action(
 	'admin_init',
 	function () {
+		foreach ( array_keys( site_chat_widget_text_options() ) as $site_chat_text_option ) {
+			register_setting(
+				'site_chat',
+				$site_chat_text_option,
+				array(
+					'sanitize_callback' => function ( $val ) use ( $site_chat_text_option ) {
+						return site_chat_sanitize_widget_text( $val, $site_chat_text_option );
+					},
+				)
+			);
+		}
 		register_setting(
 			'site_chat',
 			'site_chat_api_key',
@@ -574,6 +642,39 @@ function site_chat_settings_page() {
 						</p>
 					</td>
 				</tr>
+				<?php
+				$site_chat_text_fields = array(
+					'site_chat_toggle_label' => array(
+						'label' => __( 'Chat button text', 'site-chat' ),
+						'help'  => __( 'The label on the button that opens the chat. It is also the button\'s name for screen readers. On narrow screens only the icon shows.', 'site-chat' ),
+					),
+					'site_chat_header_text'  => array(
+						'label' => __( 'Chat header text', 'site-chat' ),
+						'help'  => __( 'The text at the top of the open chat panel.', 'site-chat' ),
+					),
+					'site_chat_welcome_text' => array(
+						'label' => __( 'Welcome message', 'site-chat' ),
+						'help'  => __( 'The first message visitors see when they open the chat.', 'site-chat' ),
+					),
+				);
+				$site_chat_text_limits = site_chat_widget_text_options();
+				foreach ( $site_chat_text_fields as $site_chat_option => $site_chat_field ) :
+					?>
+				<tr>
+					<th scope="row"><label for="<?php echo esc_attr( $site_chat_option ); ?>"><?php echo esc_html( $site_chat_field['label'] ); ?></label></th>
+					<td>
+						<input type="text" id="<?php echo esc_attr( $site_chat_option ); ?>" name="<?php echo esc_attr( $site_chat_option ); ?>"
+							value="<?php echo esc_attr( get_option( $site_chat_option, '' ) ); ?>"
+							placeholder="<?php echo esc_attr( site_chat_widget_text_default( $site_chat_option ) ); ?>"
+							maxlength="<?php echo absint( $site_chat_text_limits[ $site_chat_option ] ); ?>"
+							class="regular-text" />
+						<p class="description">
+							<?php echo esc_html( $site_chat_field['help'] ); ?>
+							<?php esc_html_e( 'Leave empty to use the default shown in the box.', 'site-chat' ); ?>
+						</p>
+					</td>
+				</tr>
+				<?php endforeach; ?>
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Follow-up: Contact URL', 'site-chat' ); ?></th>
 					<td>
@@ -1536,6 +1637,18 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 		$system .= ' ' . sprintf( 'The site is described as: %s.', $site_desc );
 	}
 
+	// Read on every request, in the site's timezone, so a cached page can never make it stale.
+	// English month and weekday names on purpose: this is an instruction to the model, not visitor-facing text.
+	$now     = new DateTimeImmutable( 'now', wp_timezone() );
+	$system .= ' ' . sprintf(
+		'Today\'s date is %1$s (%2$s, site timezone %3$s).'
+		. ' Use it to tell past from future: anything dated before today has already happened, and anything dated after today is upcoming.'
+		. ' Never describe a past date as upcoming, and when a visitor asks what is coming up, only mention dates from today onward.',
+		$now->format( 'l, F j, Y' ),
+		$now->format( 'Y-m-d' ),
+		wp_timezone_string()
+	);
+
 	$system .= ' Answer questions about the site and its content.'
 		. ' Be conversational, concise, and direct.'
 		. ' You may use Markdown formatting, but keep it light: bold, bullet lists and links only.'
@@ -1666,14 +1779,16 @@ add_action(
 		}
 
 		$rest_url         = esc_url( rest_url( 'site-chat/v1/ask' ) );
-		$welcome_text     = esc_js( __( 'Ask me anything about this site', 'site-chat' ) );
+		$welcome_text     = site_chat_widget_text( 'site_chat_welcome_text' );
 		$contact_url      = esc_js( get_option( 'site_chat_contact_url', '' ) );
 		$newsletter_url   = esc_js( get_option( 'site_chat_newsletter_url', '' ) );
 		$label_contact    = esc_js( __( 'Contact us', 'site-chat' ) );
 		$label_newsletter = esc_js( __( 'Subscribe to newsletter', 'site-chat' ) );
 		// One string for the launcher's visible label and its accessible name (WCAG 2.5.3 Label in Name).
 		// The aria-label stays because the span is display:none at <=420px; open/closed is on aria-expanded.
-		$toggle_label = __( 'Ask about this site', 'site-chat' );
+		// Both read this one value, so a custom label from settings keeps them identical too.
+		$toggle_label = site_chat_widget_text( 'site_chat_toggle_label' );
+		$header_text  = site_chat_widget_text( 'site_chat_header_text' );
 		?>
 
 <div id="sc-widget" role="complementary" aria-label="<?php esc_attr_e( 'Chat with this site', 'site-chat' ); ?>">
@@ -1685,7 +1800,7 @@ add_action(
 
 	<div id="sc-panel" hidden role="dialog" aria-label="<?php esc_attr_e( 'Site chat', 'site-chat' ); ?>" aria-modal="false">
 		<div id="sc-header">
-			<span><?php esc_html_e( '// ask me anything', 'site-chat' ); ?></span>
+			<span><?php echo esc_html( $header_text ); ?></span>
 			<button id="sc-close" aria-label="<?php esc_attr_e( 'Close chat', 'site-chat' ); ?>">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
 			</button>

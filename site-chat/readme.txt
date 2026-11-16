@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.9.3
+Stable tag: 2.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,8 @@ Site Chat indexes your published posts, pages, and custom post types, then uses 
 * Floating chat widget — bottom-right, opens on click
 * Answers questions based on your actual site content
 * Replies in the visitor's language, including the closing offer of more help
+* Knows today's date, in your site's timezone, so it can tell past events from upcoming ones
+* Your own text for the chat button, the chat header and the welcome message, or the defaults in your site's language
 * Supports all public post types (posts, pages, and any custom post types)
 * ACF field support — string-valued ACF fields are automatically included as context
 * Dark mode — respects both `prefers-color-scheme` and `data-theme="dark"`
@@ -82,6 +84,10 @@ Three settings help you fit more in: uncheck post types you don't need, set a lo
 
 Questions are limited to 500 characters, counted as characters in any language. If an answer runs out of room before it is finished, the plugin removes the unfinished part rather than showing a cut-off sentence or broken link, and asks the visitor to try a more focused question. Each time that happens, one line with the token counts is written to the PHP error log.
 
+= Can I change the chat button, header or welcome text? =
+
+Yes. In **Settings > AI Site Chat**, fill in **Chat button text**, **Chat header text** or **Welcome message**. Leave a field empty to keep the default, which follows your site's language. The button text is also the button's name for screen readers. If your site uses a page cache, clear it after saving so visitors see the new text.
+
 = Can I change the rate limit? =
 
 Yes. The default is 10 requests per IP per hour. Adjust it in **Settings > AI Site Chat**.
@@ -96,6 +102,10 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.10.0 - 2026-11-16 =
+* Added: three settings for the chat's own text: the chat button, the header at the top of the chat panel, and the welcome message. Leave a field empty to keep the default, which follows your site's language. The button text is also the button's name for screen readers, so the two can't drift apart.
+* Added: the chat now knows today's date, in your site's timezone, so it can tell past events from upcoming ones. Before, it had no way to know whether a date in your content had already happened.
 
 = 2.9.3 - 2026-11-08 =
 * Fixed: when the site replied with an error page instead of an answer, for example while a plugin update is being installed, the chat said "Network error", which blamed the visitor's connection. It now says the site couldn't answer just now and to try again in a moment. A real connection failure gets its own message.
@@ -248,6 +258,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 * Initial release.
 
 == Upgrade Notice ==
+
+= 2.10.0 =
+Adds settings for the chat button, header and welcome text, and the chat now knows today's date so it can tell past events from upcoming ones.
 
 = 2.9.2 =
 Fixes long answers being cut off mid-sentence, and non-English questions near the 500-character limit being rejected. Recommended update.

@@ -89,6 +89,18 @@ function site_chat_register_abilities() {
 					'log_enabled'         => array( 'type' => 'boolean' ),
 					'contact_url'         => array( 'type' => 'string' ),
 					'newsletter_url'      => array( 'type' => 'string' ),
+					'toggle_label'        => array(
+						'type'        => 'string',
+						'description' => 'Custom chat button text. Empty means the translated default is shown.',
+					),
+					'header_text'         => array(
+						'type'        => 'string',
+						'description' => 'Custom chat panel header text. Empty means the translated default is shown.',
+					),
+					'welcome_text'        => array(
+						'type'        => 'string',
+						'description' => 'Custom welcome message. Empty means the translated default is shown.',
+					),
 				),
 			),
 			'permission_callback' => fn() => current_user_can( 'manage_options' ),
@@ -105,6 +117,9 @@ function site_chat_register_abilities() {
 					'log_enabled'         => (bool) get_option( 'site_chat_log_enabled', 1 ),
 					'contact_url'         => (string) get_option( 'site_chat_contact_url', '' ),
 					'newsletter_url'      => (string) get_option( 'site_chat_newsletter_url', '' ),
+					'toggle_label'        => (string) get_option( 'site_chat_toggle_label', '' ),
+					'header_text'         => (string) get_option( 'site_chat_header_text', '' ),
+					'welcome_text'        => (string) get_option( 'site_chat_welcome_text', '' ),
 				);
 			},
 			'meta'                => array(
@@ -276,6 +291,18 @@ function site_chat_register_abilities() {
 						'type'        => 'string',
 						'description' => 'URL for the Newsletter follow-up CTA.',
 					),
+					'toggle_label'        => array(
+						'type'        => 'string',
+						'description' => 'Chat button text, also its screen-reader name. Max 60 characters. Pass an empty string to go back to the translated default.',
+					),
+					'header_text'         => array(
+						'type'        => 'string',
+						'description' => 'Chat panel header text. Max 60 characters. Pass an empty string to go back to the translated default.',
+					),
+					'welcome_text'        => array(
+						'type'        => 'string',
+						'description' => 'Welcome message shown when the chat opens. Max 200 characters. Pass an empty string to go back to the translated default.',
+					),
 				),
 			),
 			'output_schema'       => array(
@@ -336,6 +363,13 @@ function site_chat_register_abilities() {
 				if ( isset( $input['newsletter_url'] ) ) {
 					update_option( 'site_chat_newsletter_url', esc_url_raw( mb_substr( $input['newsletter_url'], 0, 500 ) ) );
 					$updated[] = 'newsletter_url';
+				}
+				foreach ( array( 'toggle_label', 'header_text', 'welcome_text' ) as $key ) {
+					if ( isset( $input[ $key ] ) ) {
+						$option = 'site_chat_' . $key;
+						update_option( $option, site_chat_sanitize_widget_text( $input[ $key ], $option ) );
+						$updated[] = $key;
+					}
 				}
 
 				return array(

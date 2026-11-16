@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.10.0 — 2026-11-16
+
+- Added: settings for the chat button text (`site_chat_toggle_label`, max 60 characters), the chat panel header (`site_chat_header_text`, max 60) and the welcome message (`site_chat_welcome_text`, max 200), under Settings > AI Site Chat. An empty value falls back to the translated default, which is never stored, so untouched sites keep following their translation. The button's visible label and its `aria-label` still render from one value (WCAG 2.5.3). All three are readable through `site-chat/get-settings`, writable through `site-chat/update-settings`, and removed on uninstall. Suggested by a user.
+- Added: the system prompt now carries today's date in the site's timezone (`wp_timezone()`), with an instruction to treat earlier dates as past and later ones as upcoming. It is built per request in the REST handler, so page caching cannot make it stale. Suggested by a user.
+- Fixed: the welcome message was passed through `esc_js()` twice, which would have shown a backslash before any apostrophe in a translation of it.
+
 ## 2.9.3 — 2026-11-08
 
 - Fixed: the widget showed "Network error. Please try again." for any reply it couldn't parse as JSON, because a failed `res.json()` fell into the same `catch` as a failed `fetch()`. Seen on live right after installing 2.9.2: WordPress's maintenance-mode page during the update. Unparseable replies now get "The site couldn't answer just now. It may be updating or busy. Please try again in a moment.", a rejected `fetch()` gets "Couldn't connect to the site. Check your internet connection and try again.", and a 200 reply without an `answer` falls through to the generic message rather than rendering `undefined`. Both strings are translatable.

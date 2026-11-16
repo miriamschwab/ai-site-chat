@@ -16,6 +16,8 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 - **Follow-up prompts** — "Yes please" / "No, thanks" buttons after each response, with configurable Contact and Newsletter CTA links
 - **Markdown rendering** in chat responses with clickable links
 - **Answers in the visitor's language**, including the closing offer of more help
+- **Knows today's date** in the site's timezone, so it can tell past events from upcoming ones
+- **Your own widget text** — set the chat button, header and welcome message, or leave them empty to use the defaults in the site's language
 - **Post type selector** — choose exactly which content types to include in the AI's context, each with its own per-item character limit so short-form types don't crowd out long-form content
 - **Excluded custom fields** — leave presentation-only fields out of the index by name, with `*` wildcards supported
 - **Content index stats** — a per-post-type breakdown and the largest individual records, on the settings screen and through the Abilities API
@@ -27,7 +29,7 @@ Most AI chat solutions for WordPress are complex, expensive, or require external
 1. On page load, the widget is injected via `wp_footer` with inline CSS/JS
 2. When a visitor asks a question, it hits the REST endpoint at `/wp-json/site-chat/v1/ask`
 3. The plugin fetches the cached content index (or builds it on first request)
-4. The full index is sent as a system message to Claude Haiku, with the visitor's question as the user message
+4. The full index is sent as a system message to Claude Haiku, together with today's date in the site's timezone, with the visitor's question as the user message
 5. The AI's answer comes back in a single response and is rendered in the widget with Markdown formatting. If the answer runs out of room before it is finished, the unfinished part is dropped and the visitor is asked for a more focused question, so a cut-off sentence or broken link is never shown
 
 Questions are limited to 500 characters, counted as characters in any language.
@@ -58,6 +60,9 @@ You'll need an [Anthropic API key](https://console.anthropic.com/) — the plugi
 | Logging | On | Store visitor questions and AI answers |
 | Contact URL | — | CTA link shown after conversation |
 | Newsletter URL | — | CTA link shown after conversation |
+| Chat button text | "Ask about this site" | Launcher button label, also its screen-reader name (max 60 characters) |
+| Chat header text | "// ask me anything" | Text at the top of the chat panel (max 60) |
+| Welcome message | "Ask me anything about this site" | First message when the chat opens (max 200) |
 
 ## Changelog
 
@@ -91,4 +96,4 @@ This plugin exposes abilities for the [WordPress Abilities API](https://develope
 | `site-chat/get-logs` | Always on | Returns recent chat conversations ordered newest first. Accepts `per_page` (1–100, default 20) |
 | `site-chat/update-settings` | Always on (destructive) | Updates one or more settings. Pass only the fields you want to change. The API key cannot be changed via this ability. AI tools will ask for confirmation before running. |
 
-**Updatable fields via `update-settings`:** `enabled`, `rate_limit`, `custom_instructions`, `post_type_limits`, `excluded_fields`, `log_enabled`, `contact_url`, `newsletter_url`
+**Updatable fields via `update-settings`:** `enabled`, `rate_limit`, `custom_instructions`, `post_type_limits`, `excluded_fields`, `log_enabled`, `contact_url`, `newsletter_url`, `toggle_label`, `header_text`, `welcome_text`

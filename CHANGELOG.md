@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.10.1 — 2026-11-21
+
+- Fixed: `site-chat/update-settings` stored `enabled` and `log_enabled` with a `(bool)` cast, so the string `"false"`, which agents often send, switched the widget or logging on. Both now go through `rest_sanitize_boolean()`. WordPress 7.2 sanitizes ability input before the callback runs, so it already converts the string there; on WordPress 6.9–7.1 the raw value reached the callback.
+
 ## 2.10.0 — 2026-11-16
 
 - Added: settings for the chat button text (`site_chat_toggle_label`, max 60 characters), the chat panel header (`site_chat_header_text`, max 60) and the welcome message (`site_chat_welcome_text`, max 200), under Settings > AI Site Chat. An empty value falls back to the translated default, which is never stored, so untouched sites keep following their translation. The button's visible label and its `aria-label` still render from one value (WCAG 2.5.3). All three are readable through `site-chat/get-settings`, writable through `site-chat/update-settings`, and removed on uninstall. Suggested by a user.

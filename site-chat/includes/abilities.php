@@ -320,8 +320,11 @@ function site_chat_register_abilities() {
 			'execute_callback'    => function ( $input = null ) {
 				$updated = array();
 
+				// rest_sanitize_boolean(), not a (bool) cast: agents often send "false" as a string,
+				// and (bool) "false" is true. WordPress 7.2 sanitizes input before the callback, but
+				// on 6.9-7.1 the raw value arrives here, so this is the only conversion it gets.
 				if ( isset( $input['enabled'] ) ) {
-					update_option( 'site_chat_enabled', (bool) $input['enabled'] );
+					update_option( 'site_chat_enabled', rest_sanitize_boolean( $input['enabled'] ) );
 					$updated[] = 'enabled';
 				}
 				if ( isset( $input['rate_limit'] ) ) {
@@ -353,7 +356,7 @@ function site_chat_register_abilities() {
 					$updated[] = 'excluded_fields';
 				}
 				if ( isset( $input['log_enabled'] ) ) {
-					update_option( 'site_chat_log_enabled', (bool) $input['log_enabled'] );
+					update_option( 'site_chat_log_enabled', rest_sanitize_boolean( $input['log_enabled'] ) );
 					$updated[] = 'log_enabled';
 				}
 				if ( isset( $input['contact_url'] ) ) {

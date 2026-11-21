@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.10.0
+Stable tag: 2.10.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -102,6 +102,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > AI Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.10.1 - 2026-11-21 =
+* Fixed: when an AI agent turned the chat widget or conversation logging off through the Update Settings ability and sent "false" as text, the setting was switched on instead. Both settings now read "false" as off.
 
 = 2.10.0 - 2026-11-16 =
 * Added: three settings for the chat's own text: the chat button, the header at the top of the chat panel, and the welcome message. Leave a field empty to keep the default, which follows your site's language. The button text is also the button's name for screen readers, so the two can't drift apart.
@@ -258,6 +261,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 * Initial release.
 
 == Upgrade Notice ==
+
+= 2.10.1 =
+Fixes AI agents switching the chat widget or logging on when they meant to turn it off.
 
 = 2.10.0 =
 Adds settings for the chat button, header and welcome text, and the chat now knows today's date so it can tell past events from upcoming ones.
